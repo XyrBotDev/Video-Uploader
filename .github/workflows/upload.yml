@@ -3,15 +3,15 @@ name: Telegram File Uploader
 on:
   workflow_dispatch:
     inputs:
-      link:
-        description: 'Direct file URL ya Telegram post link'
+      links:
+        description: 'Links (comma ya newline se separate - multiple allowed)'
         required: true
       caption:
-        description: 'Caption (optional)'
+        description: 'Caption (optional - all files pe same lagega)'
         required: false
         default: ''
       filename:
-        description: 'Custom filename (optional)'
+        description: 'Custom filename (optional - single file ke liye)'
         required: false
         default: ''
 
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -28,12 +28,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install ffmpeg
+      - name: Install ffmpeg & tools
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg
 
-      - name: Install dependencies
+      - name: Install Python deps
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
@@ -41,7 +41,7 @@ jobs:
       - name: Run Uploader
         env:
           SESSION_STRING: ${{ secrets.SESSION_STRING }}
-          LINK: ${{ github.event.inputs.link }}
+          LINKS: ${{ github.event.inputs.links }}
           CAPTION: ${{ github.event.inputs.caption }}
           FILENAME: ${{ github.event.inputs.filename }}
         run: |
