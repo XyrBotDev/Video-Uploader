@@ -1,0 +1,44 @@
+name: Telegram File Uploader
+
+on:
+  workflow_dispatch:
+    inputs:
+      link:
+        description: 'Direct file URL ya Telegram post link (t.me/channel/123)'
+        required: true
+      caption:
+        description: 'Caption for the file (optional)'
+        required: false
+        default: ''
+      filename:
+        description: 'Custom filename (optional)'
+        required: false
+        default: ''
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Uploader
+        env:
+          SESSION_STRING: ${{ secrets.SESSION_STRING }}
+          LINK: ${{ github.event.inputs.link }}
+          CAPTION: ${{ github.event.inputs.caption }}
+          FILENAME: ${{ github.event.inputs.filename }}
+        run: |
+          python uploader.py
