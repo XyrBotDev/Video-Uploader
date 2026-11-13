@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       links:
-        description: 'Links (comma ya newline se separate - multiple allowed)'
+        description: 'Links (comma ya newline se separate)'
         required: true
       caption:
-        description: 'Caption (optional - all files pe same lagega)'
+        description: 'Caption (optional)'
         required: false
         default: ''
       filename:
-        description: 'Custom filename (optional - single file ke liye)'
+        description: 'Custom filename (optional)'
         required: false
         default: ''
 
@@ -28,15 +28,19 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install ffmpeg & tools
+      - name: Install ffmpeg
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg
 
-      - name: Install Python deps
+      - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Install latest yt-dlp (nightly)
+        run: |
+          pip install --force-reinstall "yt-dlp[default] @ https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz"
 
       - name: Run Uploader
         env:
@@ -44,5 +48,6 @@ jobs:
           LINKS: ${{ github.event.inputs.links }}
           CAPTION: ${{ github.event.inputs.caption }}
           FILENAME: ${{ github.event.inputs.filename }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
           python uploader.py
