@@ -3,8 +3,8 @@ name: Telegram File Uploader
 on:
   workflow_dispatch:
     inputs:
-      links:
-        description: 'Links (comma ya newline se separate)'
+      link:
+        description: 'Links (comma ya newline se separate - multiple allowed)'
         required: true
       caption:
         description: 'Caption (optional)'
@@ -38,14 +38,14 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install latest yt-dlp (nightly)
+      - name: Install latest yt-dlp nightly
         run: |
           pip install --force-reinstall "yt-dlp[default] @ https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz"
 
       - name: Run Uploader
         env:
           SESSION_STRING: ${{ secrets.SESSION_STRING }}
-          LINKS: ${{ github.event.inputs.links }}
+          LINK: ${{ github.event.inputs.link }}
           CAPTION: ${{ github.event.inputs.caption }}
           FILENAME: ${{ github.event.inputs.filename }}
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
