@@ -121,7 +121,7 @@ def download_youtube(url: str):
         print(f"🍪 Cookies loaded from secret")
 
     ydl_opts = {
-        'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best',
+        'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4 a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best',
         'outtmpl': '/tmp/yt_download.%(ext)s',
         'merge_output_format': 'mp4',
         'writethumbnail': True,
@@ -145,9 +145,9 @@ def download_youtube(url: str):
     }
 
         if cookies_file and os.path.exists(cookies_file):
-        ydl_opts['cookiefile'] = cookies_file
-        ydl_opts['extractor_args']['youtube']['player_client'] = ['mweb', 'tv']
-        ydl_opts['extractor_args']['youtube']['player_skip'] = ['webpage', 'configs']
+            ydl_opts['cookiefile'] = cookies_file
+            ydl_opts['extractor_args']['youtube']['player_client'] = ['mweb', 'tv']
+            ydl_opts['extractor_args']['youtube']['player_skip'] = ['webpage', 'configs']
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
