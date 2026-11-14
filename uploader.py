@@ -1,4 +1,4 @@
-import os
+    import os
 import sys
 import time
 import asyncio
@@ -533,7 +533,7 @@ async def main():
                                 progress=make_progress_cb("📥 TG")
                             )
                         elif msg.text and msg.text.strip().startswith("http"):
-                             fn = get_filename_from_url(msg.text.strip())
+                            fn = get_filename_from_url(msg.text.strip())
                             filepath = await parallel_download(msg.text.strip(), fn)
                         else:
                             raise Exception("No media!")
@@ -585,4 +585,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())                 
+    asyncio.run(main())
+                 
