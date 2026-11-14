@@ -144,9 +144,10 @@ def download_youtube(url: str):
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     }
 
-    if cookies_file and os.path.exists(cookies_file):
+        if cookies_file and os.path.exists(cookies_file):
         ydl_opts['cookiefile'] = cookies_file
-        ydl_opts['extractor_args']['youtube']['player_client'] = ['web']
+        ydl_opts['extractor_args']['youtube']['player_client'] = ['mweb', 'tv']
+        ydl_opts['extractor_args']['youtube']['player_skip'] = ['webpage', 'configs']
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
