@@ -115,13 +115,6 @@ def download_youtube(url):
             os.remove(f)
         except Exception:
             pass
-    cookies_file = None
-    yt_cookies_env = os.environ.get("YT_COOKIES", "")
-    if yt_cookies_env and len(yt_cookies_env) > 50:
-        cookies_file = "/tmp/yt_cookies.txt"
-        with open(cookies_file, "w") as cf:
-            cf.write(yt_cookies_env)
-        print("Cookies loaded from secret")
     ydl_opts = {
         'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best',
         'outtmpl': '/tmp/yt_download.%(ext)s',
@@ -137,25 +130,14 @@ def download_youtube(url):
         'fragment_retries': 5,
         'http_chunk_size': CHUNK_SIZE,
         'progress_hooks': [yt_progress_hook],
-        'user_agent': 'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tv', 'tv_embedded'],
+            }
+        },
+        'user_agent': 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) 94.0.4606.31/6.5 TV Safari/537.36',
     }
-    if cookies_file and os.path.exists(cookies_file):
-        ydl_opts['cookiefile'] = cookies_file
-        ydl_opts['extractor_args'] = {
-            'youtube': {
-                'player_client': ['mweb', 'tv'],
-                'player_skip': ['webpage', 'configs'],
-            }
-        }
-        print("Using mweb + tv client with cookies")
-    else:
-        ydl_opts['extractor_args'] = {
-            'youtube': {
-                'player_client': ['mweb', 'web'],
-                'player_skip': ['webpage'],
-            }
-        }
-        print("Using mweb + web client no cookies")
+    print("Using TV client (no cookies needed)")
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -202,18 +184,8 @@ def download_youtube(url):
             if duration:
                 yt_caption += f"Duration: {format_time(duration)}\n"
             yt_caption += f"Link: {url}"
-            if cookies_file and os.path.exists(cookies_file):
-                try:
-                    os.remove(cookies_file)
-                except Exception:
-                    pass
             return video_path, thumb_path, yt_caption, duration
     except Exception as e:
-        if cookies_file and os.path.exists(cookies_file):
-            try:
-                os.remove(cookies_file)
-            except Exception:
-                pass
         raise Exception(f"YouTube download failed: {e}")
 
 async def download_part(session, url, start, end, part_path, sem):
@@ -367,7 +339,7 @@ async def download_original_thumb(app, msg):
             return path
     except Exception:
         pass
-    return None        
+    return None
 
 def split_file(filepath, max_size=TELEGRAM_LIMIT):
     size = os.path.getsize(filepath)
@@ -447,7 +419,7 @@ async def upload_single_file(app, filepath, caption, thumb=None, duration=0, par
 
 async def main():
     print("=" * 60)
-    print("Telegram Uploader v3")
+    print("Telegram Uploader v4 (TV Client - No Cookies)")
     print("=" * 60)
     if not SESSION_STRING:
         print("SESSION_STRING missing!")
