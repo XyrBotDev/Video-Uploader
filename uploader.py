@@ -96,57 +96,121 @@ def make_progress_cb(prefix):
                 print(f"\r{prefix} |{bar}| {p:.1f}% ({human_size(cur)}/{human_size(tot)})", end="", flush=True)
     return cb
 
-async def download_youtube_cobalt(url):
+async def download_youtube_invidious(url):
     video_id = get_youtube_id(url)
     print(f"\nYouTube video detected!")
     print(f"Video ID: {video_id}")
     print(f"URL: {url}")
-    print("Using Cobalt API (no cookies needed)...")
-    cobalt_urls = [
-        "https://api.cobalt.tools",
-        "https://cobalt-api.kwiatekmiki.com",
-        "https://cobalt.api.timelessnesses.me",
+    print("Using Invidious API (no cookies, no yt-dlp)...")
+    instances = [
+        "https://inv.nadeko.net",
+        "https://invidious.fdn.fr",
+        "https://iv.ggtyler.dev",
+        "https://invidious.privacyredirect.com",
+        "https://yewtu.be",
+        "https://vid.puffyan.us",
     ]
     download_url = None
-    filename = f"yt_{video_id}.mp4"
-    for api_url in cobalt_urls:
+    title = "YouTube Video"
+    author = ""
+    duration = 0
+    views = 0
+    for inst in instances:
         try:
-            print(f"Trying: {api_url}")
-            timeout = aiohttp.ClientTimeout(total=60)
+            api = f"{inst}/api/v1/videos/{video_id}"
+            print(f"Trying: {inst}")
+            timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                headers = {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                }
-                payload = {
-                    "url": url,
-                    "videoQuality": "1080",
-                    "filenameStyle": "basic",
-                }
-                async with session.post(api_url, json=payload, headers=headers) as resp:
+                async with session.get(api) as resp:
+                    if resp.status != 200:
+                        print(f"  Status: {resp.status}")
+                        continue
                     data = await resp.json()
-                    if resp.status == 200 and data.get("url"):
-                        download_url = data["url"]
-                        print(f"Got download link from Cobalt!")
-                        break
-                    elif data.get("status") == "tunnel" and data.get("url"):
-                        download_url = data["url"]
-                        print(f"Got tunnel link from Cobalt!")
+                    title = data.get("title", "YouTube Video")
+                    author = data.get("author", "")
+                    duration = data.get("lengthSeconds", 0)
+                    views = data.get("viewCount", 0)
+                    streams = data.get("formatStreams", [])
+                    if not streams:
+                        print(f"  No formatStreams found")
+                        continue
+                    best = None
+                    best_q = 0
+                    quality_map = {"small": 240, "medium": 360, "large": 480, "hd720": 720, "hd1080": 1080}
+                    for s in streams:
+                        container = s.get("container", "")
+                        if container != "mp4":
+                            continue
+                        q_str = s.get("quality", "")
+                        q_num = quality_map.get(q_str, 0)
+                        if q_num > best_q:
+                            best_q = q_num
+                            best = s
+                    if not best:
+                        best = streams[-1]
+                    download_url = best.get("url", "")
+                    if download_url:
+                        print(f"  Found: {best.get('quality','')} {best.get('resolution','')} mp4")
                         break
                     else:
-                        print(f"Response: {data}")
+                        print(f"  No download URL in stream")
         except Exception as e:
-            print(f"Failed: {e}")
+            print(f"  Failed: {e}")
             continue
     if not download_url:
-        raise Exception("All Cobalt APIs failed. YouTube download not available.")
+        print("Invidious failed, trying Piped API...")
+        piped_instances = [
+            "https://pipedapi.kavin.rocks",
+            "https://pipedapi.adminforge.de",
+            "https://api.piped.yt",
+        ]
+        for pinst in piped_instances:
+            try:
+                api = f"{pinst}/streams/{video_id}"
+                print(f"Trying: {pinst}")
+                timeout = aiohttp.ClientTimeout(total=30)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(api) as resp:
+                        if resp.status != 200:
+                            continue
+                        data = await resp.json()
+                        title = data.get("title", "YouTube Video")
+                        author = data.get("uploader", "")
+                        duration = data.get("duration", 0)
+                        views = data.get("views", 0)
+                        vstreams = data.get("videoStreams", [])
+                        best = None
+                        best_h = 0
+                        for vs in vstreams:
+                            vurl = vs.get("url", "")
+                            mime = vs.get("mimeType", "")
+                            h = vs.get("height", 0)
+                            if "mp4" in mime and vurl and h <= 1080 and h > best_h:
+                                best_h = h
+                                best = vs
+                        if not best:
+                            for vs in vstreams:
+                                vurl = vs.get("url", "")
+                                if vurl and vs.get("videoOnly", False) is False:
+                                    best = vs
+                                    break
+                        if best and best.get("url"):
+                            download_url = best["url"]
+                            print(f"  Found: {best.get('quality','')} from Piped")
+                            break
+            except Exception as e:
+                print(f"  Failed: {e}")
+                continue
+    if not download_url:
+        raise Exception("All Invidious and Piped instances failed!")
+    filename = f"yt_{video_id}.mp4"
     filepath = os.path.join("/tmp", filename)
-    print(f"Downloading video...")
+    print(f"\nDownloading video: {title}")
     timeout = aiohttp.ClientTimeout(total=None, connect=60, sock_read=300)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(download_url) as resp:
             if resp.status != 200:
-                raise Exception(f"Download failed: HTTP {resp.status}")
+                raise Exception(f"Download HTTP {resp.status}")
             total = int(resp.headers.get("content-length", 0))
             print(f"Size: {human_size(total) if total else 'Unknown'}")
             dl = 0
@@ -183,27 +247,22 @@ async def download_youtube_cobalt(url):
                         if len(data) > 5000:
                             async with aiofiles.open(thumb_path, "wb") as f:
                                 await f.write(data)
-                            print(f"Thumbnail downloaded: {human_size(len(data))}")
+                            print(f"Thumbnail: {human_size(len(data))}")
                             thumb_found = True
                             break
             except Exception:
                 continue
     if not thumb_found:
-        print("No thumbnail found")
+        print("No thumbnail")
         thumb_path = None
-    duration = 0
-    try:
-        r = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1", filepath],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15
-        )
-        for line in r.stdout.splitlines():
-            if "duration=" in line:
-                duration = int(float(line.split("=")[1]))
-    except Exception:
-        pass
-    yt_caption = f"YouTube Video\nDuration: {format_time(duration)}\nLink: {url}"
+    yt_caption = f"**{title}**\n"
+    if author:
+        yt_caption += f"Channel: {author}\n"
+    if views:
+        yt_caption += f"Views: {views:,}\n"
+    if duration:
+        yt_caption += f"Duration: {format_time(duration)}\n"
+    yt_caption += f"Link: {url}"
     return filepath, thumb_path, yt_caption, duration
 
 async def download_part(session, url, start, end, part_path, sem):
@@ -437,7 +496,7 @@ async def upload_single_file(app, filepath, caption, thumb=None, duration=0, par
 
 async def main():
     print("=" * 60)
-    print("Telegram Uploader v5 (Cobalt API - No Cookies No yt-dlp)")
+    print("Telegram Uploader v6 (Invidious + Piped API)")
     print("=" * 60)
     if not SESSION_STRING:
         print("SESSION_STRING missing!")
@@ -476,7 +535,7 @@ async def main():
             duration = 0
             try:
                 if is_youtube_link(link):
-                    filepath, thumb, yt_caption, duration = await download_youtube_cobalt(link)
+                    filepath, thumb, yt_caption, duration = await download_youtube_invidious(link)
                     if not CAPTION:
                         caption = yt_caption
                 else:
