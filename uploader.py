@@ -33,6 +33,10 @@ YOUTUBE_RE = re.compile(
 def is_youtube_link(url):
     return bool(YOUTUBE_RE.search(url))
 
+def get_youtube_id(url):
+    m = YOUTUBE_RE.search(url)
+    return m.group(1) if m else None
+
 def parse_links(raw):
     links = []
     for line in raw.replace(",", "\n").splitlines():
@@ -92,101 +96,115 @@ def make_progress_cb(prefix):
                 print(f"\r{prefix} |{bar}| {p:.1f}% ({human_size(cur)}/{human_size(tot)})", end="", flush=True)
     return cb
 
-def yt_progress_hook(d):
-    if d['status'] == 'downloading':
-        total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
-        downloaded = d.get('downloaded_bytes', 0)
-        speed = d.get('speed') or 0
-        eta = d.get('eta') or 0
-        if total > 0:
-            p = downloaded * 100 / total
-            f = int(p / 2)
-            bar = "#" * f + "-" * (50 - f)
-            print(f"\rYT |{bar}| {p:.1f}% {human_size(int(speed))}/s ETA:{format_time(eta)}", end="", flush=True)
-    elif d['status'] == 'finished':
-        print("\nDone merging...")
-
-def download_youtube(url):
-    import yt_dlp
+async def download_youtube_cobalt(url):
+    video_id = get_youtube_id(url)
     print(f"\nYouTube video detected!")
+    print(f"Video ID: {video_id}")
     print(f"URL: {url}")
-    for f in glob.glob("/tmp/yt_download.*"):
+    print("Using Cobalt API (no cookies needed)...")
+    cobalt_urls = [
+        "https://api.cobalt.tools",
+        "https://cobalt-api.kwiatekmiki.com",
+        "https://cobalt.api.timelessnesses.me",
+    ]
+    download_url = None
+    filename = f"yt_{video_id}.mp4"
+    for api_url in cobalt_urls:
         try:
-            os.remove(f)
-        except Exception:
-            pass
-    ydl_opts = {
-        'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best',
-        'outtmpl': '/tmp/yt_download.%(ext)s',
-        'merge_output_format': 'mp4',
-        'writethumbnail': True,
-        'thumbnail_format': 'jpg',
-        'convert-thumbnails': 'jpg',
-        'quiet': False,
-        'no_warnings': False,
-        'noplaylist': True,
-        'socket_timeout': 30,
-        'retries': 5,
-        'fragment_retries': 5,
-        'http_chunk_size': CHUNK_SIZE,
-        'progress_hooks': [yt_progress_hook],
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['tv', 'tv_embedded'],
-            }
-        },
-        'user_agent': 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) 94.0.4606.31/6.5 TV Safari/537.36',
-    }
-    print("Using TV client (no cookies needed)")
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            title = info.get('title', 'YouTube Video')
-            duration = info.get('duration', 0)
-            uploader = info.get('uploader', '')
-            views = info.get('view_count', 0)
-            video_path = ydl.prepare_filename(info)
-            base = os.path.splitext(video_path)[0]
-            mp4_path = base + ".mp4"
-            if os.path.exists(mp4_path):
-                video_path = mp4_path
-            thumb_path = base + ".jpg"
-            if not os.path.exists(thumb_path):
-                webp = base + ".webp"
-                if os.path.exists(webp):
-                    subprocess.run(["ffmpeg", "-y", "-i", webp, thumb_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
-                    try:
-                        os.remove(webp)
-                    except Exception:
-                        pass
-            if not os.path.exists(video_path):
-                candidates = glob.glob("/tmp/yt_download.*")
-                for c in candidates:
-                    if c.endswith(('.mp4', '.mkv', '.webm')):
-                        video_path = c
+            print(f"Trying: {api_url}")
+            timeout = aiohttp.ClientTimeout(total=60)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                headers = {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                }
+                payload = {
+                    "url": url,
+                    "videoQuality": "1080",
+                    "filenameStyle": "basic",
+                }
+                async with session.post(api_url, json=payload, headers=headers) as resp:
+                    data = await resp.json()
+                    if resp.status == 200 and data.get("url"):
+                        download_url = data["url"]
+                        print(f"Got download link from Cobalt!")
                         break
-            print(f"\nYouTube Download Complete!")
-            print(f"Title: {title}")
-            print(f"Channel: {uploader}")
-            print(f"Views: {views}")
-            print(f"Duration: {format_time(duration)}")
-            print(f"Size: {human_size(os.path.getsize(video_path))}")
-            if os.path.exists(thumb_path):
-                print(f"Thumbnail: {human_size(os.path.getsize(thumb_path))}")
-            else:
-                print("No thumbnail found")
-                thumb_path = None
-            yt_caption = f"**{title}**\n"
-            if uploader:
-                yt_caption += f"Channel: {uploader}\n"
-            if views:
-                yt_caption += f"Views: {views}\n"
-            if duration:
-                yt_caption += f"Duration: {format_time(duration)}\n"
-            yt_caption += f"Link: {url}"
-            return video_path, thumb_path, yt_caption, duration
-    except Exception as e:
-        raise Exception(f"YouTube download failed: {e}")
+                    elif data.get("status") == "tunnel" and data.get("url"):
+                        download_url = data["url"]
+                        print(f"Got tunnel link from Cobalt!")
+                        break
+                    else:
+                        print(f"Response: {data}")
+        except Exception as e:
+            print(f"Failed: {e}")
+            continue
+    if not download_url:
+        raise Exception("All Cobalt APIs failed. YouTube download not available.")
+    filepath = os.path.join("/tmp", filename)
+    print(f"Downloading video...")
+    timeout = aiohttp.ClientTimeout(total=None, connect=60, sock_read=300)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(download_url) as resp:
+            if resp.status != 200:
+                raise Exception(f"Download failed: HTTP {resp.status}")
+            total = int(resp.headers.get("content-length", 0))
+            print(f"Size: {human_size(total) if total else 'Unknown'}")
+            dl = 0
+            t0 = time.time()
+            async with aiofiles.open(filepath, "wb") as f:
+                async for chunk in resp.content.iter_chunked(CHUNK_SIZE):
+                    await f.write(chunk)
+                    dl += len(chunk)
+                    if total:
+                        p = dl * 100 / total
+                        el = time.time() - t0
+                        sp = dl / el if el > 0 else 0
+                        eta = (total - dl) / sp if sp > 0 else 0
+                        fi = int(p / 2)
+                        bar = "#" * fi + "-" * (50 - fi)
+                        print(f"\rYT |{bar}| {p:.1f}% {human_size(int(sp))}/s ETA:{format_time(eta)}", end="", flush=True)
+            print()
+    elapsed = time.time() - t0
+    size = os.path.getsize(filepath)
+    print(f"Download complete! {human_size(size)} in {format_time(elapsed)}")
+    thumb_path = f"/tmp/yt_{video_id}_thumb.jpg"
+    thumb_urls = [
+        f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg",
+        f"https://img.youtube.com/vi/{video_id}/sddefault.jpg",
+        f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg",
+    ]
+    thumb_found = False
+    async with aiohttp.ClientSession() as session:
+        for turl in thumb_urls:
+            try:
+                async with session.get(turl) as resp:
+                    if resp.status == 200:
+                        data = await resp.read()
+                        if len(data) > 5000:
+                            async with aiofiles.open(thumb_path, "wb") as f:
+                                await f.write(data)
+                            print(f"Thumbnail downloaded: {human_size(len(data))}")
+                            thumb_found = True
+                            break
+            except Exception:
+                continue
+    if not thumb_found:
+        print("No thumbnail found")
+        thumb_path = None
+    duration = 0
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1", filepath],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15
+        )
+        for line in r.stdout.splitlines():
+            if "duration=" in line:
+                duration = int(float(line.split("=")[1]))
+    except Exception:
+        pass
+    yt_caption = f"YouTube Video\nDuration: {format_time(duration)}\nLink: {url}"
+    return filepath, thumb_path, yt_caption, duration
 
 async def download_part(session, url, start, end, part_path, sem):
     async with sem:
@@ -419,7 +437,7 @@ async def upload_single_file(app, filepath, caption, thumb=None, duration=0, par
 
 async def main():
     print("=" * 60)
-    print("Telegram Uploader v4 (TV Client - No Cookies)")
+    print("Telegram Uploader v5 (Cobalt API - No Cookies No yt-dlp)")
     print("=" * 60)
     if not SESSION_STRING:
         print("SESSION_STRING missing!")
@@ -458,12 +476,7 @@ async def main():
             duration = 0
             try:
                 if is_youtube_link(link):
-                    loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(None, download_youtube, link)
-                    filepath = result[0]
-                    thumb = result[1]
-                    yt_caption = result[2]
-                    duration = result[3]
+                    filepath, thumb, yt_caption, duration = await download_youtube_cobalt(link)
                     if not CAPTION:
                         caption = yt_caption
                 else:
