@@ -1,4 +1,4 @@
-    import os
+import os
 import sys
 import time
 import asyncio
@@ -30,10 +30,8 @@ YOUTUBE_RE = re.compile(
     r'([a-zA-Z0-9_-]{11})'
 )
 
-
 def is_youtube_link(url):
     return bool(YOUTUBE_RE.search(url))
-
 
 def parse_links(raw):
     links = []
@@ -42,7 +40,6 @@ def parse_links(raw):
         if link and (link.startswith("http") or "t.me/" in link):
             links.append(link)
     return links
-
 
 def parse_telegram_link(link):
     link = link.strip()
@@ -60,11 +57,9 @@ def parse_telegram_link(link):
         pass
     return None, None
 
-
 def get_filename_from_url(url):
     fn = os.path.basename(unquote(urlparse(url).path))
     return fn if fn and '.' in fn else "file"
-
 
 def human_size(b):
     if b == 0:
@@ -77,14 +72,12 @@ def human_size(b):
         i += 1
     return f"{s:.2f} {units[i]}"
 
-
 def format_time(seconds):
     if seconds < 60:
         return f"{seconds:.0f}s"
     if seconds < 3600:
         return f"{seconds/60:.1f}m"
     return f"{seconds/3600:.1f}h"
-
 
 def make_progress_cb(prefix):
     last = [0]
@@ -95,10 +88,9 @@ def make_progress_cb(prefix):
             if tot > 0:
                 p = cur * 100 / tot
                 f = int(p / 2)
-                bar = "█" * f + "░" * (50 - f)
+                bar = "#" * f + "-" * (50 - f)
                 print(f"\r{prefix} |{bar}| {p:.1f}% ({human_size(cur)}/{human_size(tot)})", end="", flush=True)
     return cb
-
 
 def yt_progress_hook(d):
     if d['status'] == 'downloading':
@@ -109,16 +101,15 @@ def yt_progress_hook(d):
         if total > 0:
             p = downloaded * 100 / total
             f = int(p / 2)
-            bar = "█" * f + "░" * (50 - f)
-            print(f"\r🎬 |{bar}| {p:.1f}% {human_size(int(speed))}/s ETA:{format_time(eta)}", end="", flush=True)
+            bar = "#" * f + "-" * (50 - f)
+            print(f"\rYT |{bar}| {p:.1f}% {human_size(int(speed))}/s ETA:{format_time(eta)}", end="", flush=True)
     elif d['status'] == 'finished':
-        print("\n✅ Download finished, merging...")
-
+        print("\nDone merging...")
 
 def download_youtube(url):
     import yt_dlp
-    print(f"\n🎬 YouTube video detected!")
-    print(f"🔗 {url}")
+    print(f"\nYouTube video detected!")
+    print(f"URL: {url}")
     for f in glob.glob("/tmp/yt_download.*"):
         try:
             os.remove(f)
@@ -130,7 +121,7 @@ def download_youtube(url):
         cookies_file = "/tmp/yt_cookies.txt"
         with open(cookies_file, "w") as cf:
             cf.write(yt_cookies_env)
-        print("🍪 Cookies loaded from secret")
+        print("Cookies loaded from secret")
     ydl_opts = {
         'format': 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080][ext=mp4]/best[ext=mp4]/best',
         'outtmpl': '/tmp/yt_download.%(ext)s',
@@ -156,7 +147,7 @@ def download_youtube(url):
                 'player_skip': ['webpage', 'configs'],
             }
         }
-        print("📱 Using mweb + tv client (cookies mode)")
+        print("Using mweb + tv client with cookies")
     else:
         ydl_opts['extractor_args'] = {
             'youtube': {
@@ -164,7 +155,7 @@ def download_youtube(url):
                 'player_skip': ['webpage'],
             }
         }
-        print("🌐 Using mweb + web client (no cookies)")
+        print("Using mweb + web client no cookies")
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
@@ -181,12 +172,7 @@ def download_youtube(url):
             if not os.path.exists(thumb_path):
                 webp = base + ".webp"
                 if os.path.exists(webp):
-                    subprocess.run(
-                        ["ffmpeg", "-y", "-i", webp, thumb_path],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        timeout=10
-                    )
+                    subprocess.run(["ffmpeg", "-y", "-i", webp, thumb_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
                     try:
                         os.remove(webp)
                     except Exception:
@@ -197,25 +183,25 @@ def download_youtube(url):
                     if c.endswith(('.mp4', '.mkv', '.webm')):
                         video_path = c
                         break
-            print("\n✅ YouTube Download Complete!")
-            print(f"📺 Title: {title}")
-            print(f"👤 Channel: {uploader}")
-            print(f"👁️ Views: {views:,}")
-            print(f"⏱️ Duration: {format_time(duration)}")
-            print(f"📦 Size: {human_size(os.path.getsize(video_path))}")
+            print(f"\nYouTube Download Complete!")
+            print(f"Title: {title}")
+            print(f"Channel: {uploader}")
+            print(f"Views: {views}")
+            print(f"Duration: {format_time(duration)}")
+            print(f"Size: {human_size(os.path.getsize(video_path))}")
             if os.path.exists(thumb_path):
-                print(f"🖼️ Thumbnail: {human_size(os.path.getsize(thumb_path))}")
+                print(f"Thumbnail: {human_size(os.path.getsize(thumb_path))}")
             else:
-                print("⚠️ Thumbnail nahi mila")
+                print("No thumbnail found")
                 thumb_path = None
-            yt_caption = f"📺 **{title}**\n"
+            yt_caption = f"**{title}**\n"
             if uploader:
-                yt_caption += f"👤 {uploader}\n"
+                yt_caption += f"Channel: {uploader}\n"
             if views:
-                yt_caption += f"👁️ {views:,} views\n"
+                yt_caption += f"Views: {views}\n"
             if duration:
-                yt_caption += f"⏱️ {format_time(duration)}\n"
-            yt_caption += f"🔗 {url}"
+                yt_caption += f"Duration: {format_time(duration)}\n"
+            yt_caption += f"Link: {url}"
             if cookies_file and os.path.exists(cookies_file):
                 try:
                     os.remove(cookies_file)
@@ -229,7 +215,6 @@ def download_youtube(url):
             except Exception:
                 pass
         raise Exception(f"YouTube download failed: {e}")
-
 
 async def download_part(session, url, start, end, part_path, sem):
     async with sem:
@@ -247,10 +232,9 @@ async def download_part(session, url, start, end, part_path, sem):
                 await asyncio.sleep(2 ** attempt)
         return 0
 
-
 async def parallel_download(url, filename):
     filepath = os.path.join("/tmp", filename)
-    print(f"\n📥 Parallel Download: {filename}")
+    print(f"\nParallel Download: {filename}")
     timeout = aiohttp.ClientTimeout(total=None, connect=30)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.head(url, allow_redirects=True) as resp:
@@ -258,7 +242,7 @@ async def parallel_download(url, filename):
             accept_range = resp.headers.get('accept-ranges', '')
         if total == 0 or 'bytes' not in accept_range:
             return await single_download(url, filename)
-        print(f"📦 Size: {human_size(total)} | Parts: {PARALLEL_PARTS}")
+        print(f"Size: {human_size(total)} Parts: {PARALLEL_PARTS}")
         part_size = total // PARALLEL_PARTS
         parts = []
         for i in range(PARALLEL_PARTS):
@@ -269,7 +253,7 @@ async def parallel_download(url, filename):
         t0 = time.time()
         tasks = [download_part(session, url, s, e, p, sem) for s, e, p in parts]
         await asyncio.gather(*tasks)
-        print("\n🔗 Merging...")
+        print("\nMerging parts...")
         async with aiofiles.open(filepath, 'wb') as out:
             for _, _, pp in parts:
                 if os.path.exists(pp):
@@ -283,9 +267,8 @@ async def parallel_download(url, filename):
     elapsed = time.time() - t0
     size = os.path.getsize(filepath)
     speed = int(size / elapsed) if elapsed > 0 else 0
-    print(f"✅ Done! {human_size(size)} in {format_time(elapsed)} ({human_size(speed)}/s)")
+    print(f"Done! {human_size(size)} in {format_time(elapsed)} ({human_size(speed)}/s)")
     return filepath
-
 
 async def single_download(url, filename):
     filepath = os.path.join("/tmp", filename)
@@ -297,8 +280,7 @@ async def single_download(url, filename):
                     if resp.status != 200:
                         raise Exception(f"HTTP {resp.status}")
                     total = int(resp.headers.get('content-length', 0))
-                    size_str = human_size(total) if total else 'Unknown'
-                    print(f"📦 Size: {size_str}")
+                    print(f"Size: {human_size(total) if total else 'Unknown'}")
                     dl = 0
                     t0 = time.time()
                     async with aiofiles.open(filepath, 'wb') as f:
@@ -311,15 +293,14 @@ async def single_download(url, filename):
                                 sp = dl / el if el > 0 else 0
                                 eta = (total - dl) / sp if sp > 0 else 0
                                 fi = int(p / 2)
-                                bar = "█" * fi + "░" * (50 - fi)
-                                print(f"\r📥 |{bar}| {p:.1f}% {human_size(int(sp))}/s ETA:{format_time(eta)}", end="", flush=True)
+                                bar = "#" * fi + "-" * (50 - fi)
+                                print(f"\rDL |{bar}| {p:.1f}% {human_size(int(sp))}/s ETA:{format_time(eta)}", end="", flush=True)
                     print()
                     return filepath
             except Exception as e:
-                print(f"\n⚠️ Retry {attempt+1}: {e}")
+                print(f"\nRetry {attempt+1}: {e}")
                 await asyncio.sleep(2 ** attempt)
     raise Exception("Download failed!")
-
 
 def get_video_metadata(filepath):
     try:
@@ -347,7 +328,6 @@ def get_video_metadata(filepath):
     except Exception:
         return 0, 0, 0
 
-
 def generate_thumbnail_ffmpeg(filepath):
     thumb = "/tmp/thumb_ffmpeg.jpg"
     try:
@@ -363,7 +343,6 @@ def generate_thumbnail_ffmpeg(filepath):
     except Exception:
         pass
     return None
-
 
 async def download_original_thumb(app, msg):
     thumbs = None
@@ -381,24 +360,20 @@ async def download_original_thumb(app, msg):
         if path and os.path.exists(path) and os.path.getsize(path) > 0:
             if path.endswith(".webp"):
                 jpg = "/tmp/orig_thumb.jpg"
-                subprocess.run(
-                    ["ffmpeg", "-y", "-i", path, jpg],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10
-                )
+                subprocess.run(["ffmpeg", "-y", "-i", path, jpg], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
                 if os.path.exists(jpg):
                     os.remove(path)
                     path = jpg
             return path
     except Exception:
         pass
-    return None
-
+    return None        
 
 def split_file(filepath, max_size=TELEGRAM_LIMIT):
     size = os.path.getsize(filepath)
     if size <= max_size:
         return [filepath]
-    print(f"\n✂️ Splitting {human_size(size)}...")
+    print(f"\nSplitting {human_size(size)}...")
     parts = []
     pn = 1
     base, ext = os.path.splitext(filepath)
@@ -421,7 +396,6 @@ def split_file(filepath, max_size=TELEGRAM_LIMIT):
                 break
     return parts
 
-
 async def upload_single_file(app, filepath, caption, thumb=None, duration=0, part_info=""):
     file_size = os.path.getsize(filepath)
     filename = os.path.basename(filepath)
@@ -431,7 +405,7 @@ async def upload_single_file(app, filepath, caption, thumb=None, duration=0, par
     photo_exts = {'jpg', 'jpeg', 'png', 'bmp', 'webp'}
     final_caption = caption if caption else filename
     if part_info:
-        final_caption = f"{final_caption}\n{part_info}"
+        final_caption = final_caption + "\n" + part_info
     for attempt in range(MAX_RETRIES):
         try:
             if ext in video_exts:
@@ -444,50 +418,48 @@ async def upload_single_file(app, filepath, caption, thumb=None, duration=0, par
                     chat_id="me", video=filepath, caption=final_caption,
                     file_name=filename, thumb=thumb, duration=duration,
                     width=w, height=h, supports_streaming=True,
-                    progress=make_progress_cb(f"📤 {part_info or 'Upload'}")
+                    progress=make_progress_cb("Upload " + part_info)
                 )
             elif ext in audio_exts:
                 await app.send_audio(
                     chat_id="me", audio=filepath, caption=final_caption,
-                    file_name=filename,
-                    progress=make_progress_cb("📤 Upload")
+                    file_name=filename, progress=make_progress_cb("Upload")
                 )
             elif ext in photo_exts and file_size < 10 * 1024 * 1024:
                 await app.send_photo(
                     chat_id="me", photo=filepath, caption=final_caption,
-                    progress=make_progress_cb("📤 Upload")
+                    progress=make_progress_cb("Upload")
                 )
             else:
                 await app.send_document(
                     chat_id="me", document=filepath, caption=final_caption,
                     file_name=filename, force_document=True, thumb=thumb,
-                    progress=make_progress_cb("📤 Upload")
+                    progress=make_progress_cb("Upload")
                 )
             return True
         except FloodWait as e:
-            print(f"\n⏳ FloodWait: {e.value}s")
+            print(f"\nFloodWait: {e.value}s")
             await asyncio.sleep(e.value + 2)
         except Exception as e:
-            print(f"\n⚠️ Retry {attempt+1}: {e}")
+            print(f"\nRetry {attempt+1}: {e}")
             await asyncio.sleep(2 ** attempt)
     return False
 
-
 async def main():
     print("=" * 60)
-    print("🚀 Telegram Uploader v3 (YouTube + Parallel + Batch)")
+    print("Telegram Uploader v3")
     print("=" * 60)
     if not SESSION_STRING:
-        print("❌ SESSION_STRING missing!")
+        print("SESSION_STRING missing!")
         sys.exit(1)
     if not LINKS_RAW:
-        print("❌ LINK missing!")
+        print("LINK missing!")
         sys.exit(1)
     links = parse_links(LINKS_RAW)
     if not links:
-        print("❌ No valid links!")
+        print("No valid links!")
         sys.exit(1)
-    print(f"\n📋 Total links: {len(links)}")
+    print(f"\nTotal links: {len(links)}")
     for i, l in enumerate(links, 1):
         print(f"   {i}. {l[:80]}")
     app = Client(
@@ -497,16 +469,16 @@ async def main():
     async with app:
         try:
             me = await app.get_me()
-            print(f"\n✅ Logged in: {me.first_name}")
+            print(f"\nLogged in: {me.first_name}")
         except (UserDeactivated, AuthKeyUnregistered):
-            print("❌ Session invalid!")
+            print("Session invalid!")
             sys.exit(1)
         t_start = time.time()
         success = 0
         failed = 0
         for idx, link in enumerate(links, 1):
             print(f"\n{'='*60}")
-            print(f"📌 [{idx}/{len(links)}] {link[:70]}")
+            print(f"[{idx}/{len(links)}] {link[:70]}")
             print(f"{'='*60}")
             filepath = None
             thumb = None
@@ -515,9 +487,11 @@ async def main():
             try:
                 if is_youtube_link(link):
                     loop = asyncio.get_event_loop()
-                    filepath, thumb, yt_caption, duration = await loop.run_in_executor(
-                        None, download_youtube, link
-                    )
+                    result = await loop.run_in_executor(None, download_youtube, link)
+                    filepath = result[0]
+                    thumb = result[1]
+                    yt_caption = result[2]
+                    duration = result[3]
                     if not CAPTION:
                         caption = yt_caption
                 else:
@@ -530,7 +504,7 @@ async def main():
                             thumb = await download_original_thumb(app, msg)
                             filepath = await app.download_media(
                                 msg, file_name="/tmp/",
-                                progress=make_progress_cb("📥 TG")
+                                progress=make_progress_cb("TG Download")
                             )
                         elif msg.text and msg.text.strip().startswith("http"):
                             fn = get_filename_from_url(msg.text.strip())
@@ -544,7 +518,7 @@ async def main():
                             fn = get_filename_from_url(link)
                         filepath = await parallel_download(link, fn)
                     else:
-                        print("❌ Invalid link")
+                        print("Invalid link")
                         failed += 1
                         continue
                 if not filepath or not os.path.exists(filepath):
@@ -568,7 +542,7 @@ async def main():
                     if part != filepath and os.path.exists(part):
                         os.remove(part)
             except Exception as e:
-                print(f"❌ Error: {e}")
+                print(f"Error: {e}")
                 failed += 1
             for f in [filepath, thumb]:
                 if f and os.path.exists(f):
@@ -577,13 +551,11 @@ async def main():
                     except Exception:
                         pass
         print(f"\n{'='*60}")
-        print("🎉 ALL DONE!")
-        print(f"   ✅ Success: {success}")
-        print(f"   ❌ Failed:  {failed}")
-        print(f"   ⏱️ Total:   {format_time(time.time()-t_start)}")
+        print("ALL DONE!")
+        print(f"   Success: {success}")
+        print(f"   Failed:  {failed}")
+        print(f"   Total:   {format_time(time.time()-t_start)}")
         print(f"{'='*60}")
-
 
 if __name__ == "__main__":
     asyncio.run(main())
-                 
